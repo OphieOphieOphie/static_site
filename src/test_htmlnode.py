@@ -2,37 +2,80 @@ import unittest
 from htmlnode import *
 
 class TestHTMLNode(unittest.TestCase):
-	def test_all_none(self):
-		# Test default values of None
+
+	def test_init_default(self):
+		# Test default implementation
 		node = HTMLnode()
-		self.assertTrue(node.tag==node.value==node.children and node.props=={}, msg = "Test default values of None")
+		self.assertIsNone(node.tag,
+			msg="Test default implementation, tag")
+		self.assertIsNone(node.value,
+			msg="Test default implementation, value")
+		self.assertIsNone(node.children,
+			msg="Test default implementation, children")
+		self.assertEqual(node.props, {},
+			msg="Test default implementation, props")
 
-	def test_props(self):
-		# Test props with multiple values
-		node = HTMLnode(props={"a":"b","c":"d"})
-		self.assertEqual(node.props_to_html(), 'a="b" c="d"', msg = "Test props with multiple values")
+	def test_init_with_values(self):
+		# Test implementation with values
+		node = HTMLnode("div", "content", ["child1", "child2"], {"class": "test"})
+		self.assertEqual(node.tag, "div",
+			msg="Test implementation with values, tag")
+		self.assertEqual(node.value, "content",
+			msg="Test implementation with values, value")
+		self.assertEqual(node.children, ["child1", "child2"],
+			msg="Test implementation with values, children")
+		self.assertEqual(node.props, {"class": "test"},
+			msg="Test implementation with values, props")
 
-	def test_props_empty(self):
-		# Test when props is None or an empty dictionary
-		node = HTMLnode(tag="p", value=None, children=None, props={})
-		self.assertEqual(node.props_to_html(), "", msg = "Test when props is None or an empty dictionary")
+	def test_to_html_not_implemented(self):
+		# Test feature not implemented
+		node = HTMLnode()
+		with self.assertRaises(NotImplementedError):
+			node.to_html()
 
-	def test_tag_and_value(self):
-	   	# Test if the tag and value are correctly set
-		node = HTMLnode(tag="h1", value="Hello World", children=None, props=None)
-		self.assertEqual(node.tag, "h1")
-		self.assertEqual(node.value, "Hello World", msg = "Test if the tag and value are correctly set")
+	def test_props_to_html_empty(self):
+		# Test no props_to_html when no value
+		node = HTMLnode()
+		self.assertEqual(node.props_to_html(), "",
+			msg="Test no props_to_html when no value")
 
-	def test_children(self):
-		# Test if children are correctly initialized
-		child_node = HTMLnode(tag="span", value="Child", children=None, props=None)
-		parent_node = HTMLnode(tag="div", value="Parent", children=[child_node], props=None)
-		self.assertEqual(parent_node.children, [child_node], msg = "Test if children are correctly initialized")
+	def test_props_to_html_single_prop(self):
+		# Test no props_to_html when value
+		node = HTMLnode(props={"class": "test"})
+		self.assertEqual(node.props_to_html(), 'class="test"',
+			msg="Test no props_to_html when value")
 
-	def test_repr(self):
-		# Test __repr__ output for a node with props
-		node = HTMLnode(tag="p", value="Text", children=None, props={"a": "b"})
-		self.assertEqual(repr(node), 'HTMLnode(tag=p, value=Text, children=None, props=a="b")', msg = "Test __repr__ output for a node with props")
+	def test_props_to_html_multiple_props(self):
+		# Test no props_to_html when multiple value
+		node = HTMLnode(props={"class": "test", "id": "main"})
+		result = node.props_to_html()
+		self.assertTrue(result == 'class="test" id="main"' or result == 'id="main" class="test"',
+			msg="Test no props_to_html when multiple value")
+
+	def test_repr_empty(self):
+		# Test __repr__ returned correctly, no values
+		node = HTMLnode()
+		self.assertEqual(repr(node), "HTMLnode(tag=None, value=None, children=None, props=)",
+			msg="Test __repr__ returned correctly, no values")
+
+	def test_repr_with_values(self):
+		# Test __repr__ returned correctly, with values
+		node = HTMLnode("div", "content", ["child1", "child2"], {"class": "test"})
+		expected = 'HTMLnode(tag=div, value=content, children=[\'child1\', \'child2\'], props=class="test")'
+		self.assertEqual(repr(node), expected,
+			msg="Test __repr__ returned correctly, with values")
+
+	def test_props_none(self):
+		# Test props explicit None value gives empty dict
+		node = HTMLnode(props=None)
+		self.assertEqual(node.props, {},
+			msg="Test props explicit None value gives empty dict")
+
+	def test_props_empty_dict(self):
+		# Test props explicit None value gives empty dict
+		node = HTMLnode(props={})
+		self.assertEqual(node.props, {},
+			msg="Test props explicit explicit None value gives empty dict")
 	
 class TestLeafNode(unittest.TestCase):
 	def test_regular_node(self):
@@ -104,6 +147,55 @@ class TestLeafNode(unittest.TestCase):
 			node.props_to_html() in ['class="bold" id="main"', 'id="main" class="bold"'],
 			msg="Test props_to_html output"
 		)
+
+class TestParentNode(unittest.TestCase):
+    def test_parent_node_basic(self):
+		# ParentNode.to_html() and two LeafNode children
+        child1 = LeafNode("p", "Paragraph 1")
+        child2 = LeafNode("p", "Paragraph 2")
+        parent = ParentNode("div", [child1, child2])
+        self.assertEqual(parent.to_html(), "<div><p>Paragraph 1</p><p>Paragraph 2</p></div>",
+			msg="ParentNode.to_html() and two LeafNode children")
+
+    def test_parent_node_with_props(self):
+		# ParentNode.to_html() and one LeafNode child
+        child = LeafNode("p", "Content")
+        parent = ParentNode("div", [child], {"class": "container"})
+        self.assertEqual(parent.to_html(), '<div class="container"><p>Content</p></div>',
+			msg="ParentNode.to_html() and one LeafNode child")
+
+    def test_parent_node_nested(self):
+		# ParentNode.to_html() with one ParentNode child with two LeafNode children
+        leaf1 = LeafNode("p", "Paragraph 1")
+        leaf2 = LeafNode("p", "Paragraph 2")
+        inner_parent = ParentNode("div", [leaf1, leaf2], {"class": "inner"})
+        outer_parent = ParentNode("div", [inner_parent], {"class": "outer"})
+        expected = '<div class="outer"><div class="inner"><p>Paragraph 1</p><p>Paragraph 2</p></div></div>'
+        self.assertEqual(outer_parent.to_html(), expected,
+			msg="ParentNode.to_html() with one ParentNode child with two LeafNode children")
+
+    def test_parent_node_invalid_no_tag(self):
+		# ParentNode no tag ValueError
+        with self.assertRaises(ValueError, msg="ParentNode no tag ValueError"):
+            ParentNode(children=[LeafNode("p", "Content")]).to_html()
+
+    def test_parent_node_invalid_no_children(self):
+		# ParentNode no children ValueError
+        with self.assertRaises(ValueError, msg="ParentNode no children ValueError"):
+            ParentNode("div").to_html()
+
+    def test_parent_node_invalid_with_value(self):
+		# ParentNode forced value assignment, TypeError
+        with self.assertRaises(TypeError, msg="ParentNode forced value assignment, TypeError"):
+            ParentNode("div", [], value="This should raise an error")
+
+    def test_parent_node_repr(self):
+		# ParentNode and one LeafNodes child __repr__
+        child = LeafNode("p", "Content")
+        parent = ParentNode("div", [child], {"class": "container"})
+        expected = 'ParentNode(tag=div, children=[LeafNode(tag=p, value=Content, props=)], props=class="container")'
+        self.assertEqual(repr(parent), expected,
+			msg="ParentNode.to_html() and two LeafNode children")
 
 if __name__ == '__main__':
 	unittest.main()
