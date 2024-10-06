@@ -1,3 +1,5 @@
+from textnode import TextNode
+
 class HTMLnode:
 	def __init__(self, tag=None, value=None, children=None, props=None):
 		self.tag = tag
@@ -64,3 +66,21 @@ class ParentNode(HTMLnode):
 	def __repr__(self):
 		props_str = self.props_to_html() if self.props else ""
 		return f"ParentNode(tag={self.tag}, children={self.children}, props={props_str})"
+
+def text_node_to_html_node(text_node):
+	if not isinstance(text_node, TextNode): 
+		raise Exception("text_node_to_html_node only accepts objects of the TextNode class")
+
+	text, text_type, url, alt = text_node.text, text_node.text_type, text_node.url, ""
+	if text_type not in ("text","bold","italic","code","link","image"): raise Exception("Incompatible text_type")
+
+	if url and url.startswith("!["):
+		alt_ind = url.index("]") + 1
+		alt, url = url[:alt_ind], url[alt_ind+1:-1]
+
+	return {"text":LeafNode(value=text),
+		 "bold":LeafNode("b",text),
+		 "italic":LeafNode("i",text),
+		 "code":LeafNode("code",text),
+		 "link":LeafNode("a",text,{"href":url}),
+		 "image":LeafNode("img","",{"src":url,"alt":alt})}.get(text_type)

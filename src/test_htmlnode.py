@@ -1,5 +1,6 @@
 import unittest
 from htmlnode import *
+from textnode import *
 
 class TestHTMLNode(unittest.TestCase):
 
@@ -196,6 +197,64 @@ class TestParentNode(unittest.TestCase):
         expected = 'ParentNode(tag=div, children=[LeafNode(tag=p, value=Content, props=)], props=class="container")'
         self.assertEqual(repr(parent), expected,
 			msg="ParentNode.to_html() and two LeafNode children")
+
+class TestTextNodeToHTMLNode(unittest.TestCase):
+
+    def test_plain_text(self):
+        text_node = TextNode("Hello, world!", "text")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertIsNone(html_node.tag)
+        self.assertEqual(html_node.value, "Hello, world!")
+
+    def test_bold_text(self):
+        text_node = TextNode("Bold text", "bold")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertEqual(html_node.tag, "b")
+        self.assertEqual(html_node.value, "Bold text")
+
+    def test_italic_text(self):
+        text_node = TextNode("Italic text", "italic")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertEqual(html_node.tag, "i")  # Note: This might be a bug in the original function
+        self.assertEqual(html_node.value, "Italic text")
+
+    def test_code_text(self):
+        text_node = TextNode("print('Hello')", "code")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertEqual(html_node.tag, "code")
+        self.assertEqual(html_node.value, "print('Hello')")
+
+    def test_link(self):
+        text_node = TextNode("Click here", "link", "https://example.com")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertEqual(html_node.tag, "a")
+        self.assertEqual(html_node.value, "Click here")
+        self.assertEqual(html_node.props, {"href": "https://example.com"})
+
+    def test_image(self):
+        text_node = TextNode("", "image", "![Alt text](https://example.com/image.jpg)")
+        html_node = text_node_to_html_node(text_node)
+        self.assertIsInstance(html_node, LeafNode)
+        self.assertEqual(html_node.tag, "img")
+        self.assertEqual(html_node.value, "")
+        self.assertEqual(html_node.props, {"src": "https://example.com/image.jpg", "alt": "![Alt text]"})
+
+    def test_invalid_type(self):
+        text_node = TextNode("Invalid", "invalid_type")
+        with self.assertRaises(Exception) as context:
+            text_node_to_html_node(text_node)
+        self.assertTrue("Incompatible text_type" in str(context.exception))
+
+    def test_invalid_input(self):
+        with self.assertRaises(Exception) as context:
+            text_node_to_html_node("Not a TextNode")
+        self.assertTrue("only accepts objects of the TextNode class" in str(context.exception))
+
 
 if __name__ == '__main__':
 	unittest.main()
