@@ -74,9 +74,9 @@ def text_node_to_html_node(text_node):
 	text, text_type, url, alt = text_node.text, text_node.text_type, text_node.url, ""
 	if text_type not in ("text","bold","italic","code","link","image"): raise Exception(f"Incompatible text_type: {text_type}")
 
-	if url and url.startswith("!["):
-		alt_ind = url.index("]")
-		alt, url = url[2:alt_ind], url[alt_ind+2:-1]
+	if url and text_type == "image":
+		alt_ind = url.index("](")
+		alt, url = url[:alt_ind], url[alt_ind+2:]
 
 	return {"text":LeafNode(value=text),
 		 "bold":LeafNode("b",text),
