@@ -72,11 +72,11 @@ def text_node_to_html_node(text_node):
 		raise Exception("text_node_to_html_node only accepts objects of the TextNode class")
 
 	text, text_type, url, alt = text_node.text, text_node.text_type, text_node.url, ""
-	if text_type not in ("text","bold","italic","code","link","image"): raise Exception("Incompatible text_type")
+	if text_type not in ("text","bold","italic","code","link","image"): raise Exception(f"Incompatible text_type: {text_type}")
 
 	if url and url.startswith("!["):
-		alt_ind = url.index("]") + 1
-		alt, url = url[:alt_ind], url[alt_ind+1:-1]
+		alt_ind = url.index("]")
+		alt, url = url[2:alt_ind], url[alt_ind+2:-1]
 
 	return {"text":LeafNode(value=text),
 		 "bold":LeafNode("b",text),

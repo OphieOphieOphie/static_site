@@ -242,7 +242,7 @@ class TestTextNodeToHTMLNode(unittest.TestCase):
         self.assertIsInstance(html_node, LeafNode)
         self.assertEqual(html_node.tag, "img")
         self.assertEqual(html_node.value, "")
-        self.assertEqual(html_node.props, {"src": "https://example.com/image.jpg", "alt": "![Alt text]"})
+        self.assertEqual(html_node.props, {"src": "https://example.com/image.jpg", "alt": "Alt text"})
 
     def test_invalid_type(self):
         text_node = TextNode("Invalid", "invalid_type")
