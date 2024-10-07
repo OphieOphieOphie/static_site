@@ -1,68 +1,311 @@
 from textnode import *
 import htmlnode
 
-def raw_text_to_markdown(text):
+def raw_text_to_markdown(text, line_tag="p"):
     length = len(text)
-
-    openers = "*`[!"
-    markdown_openers = {"*":"*", "**":"**", "`":"`", "[":")", "![":")"}
-    opener_dict = {"*":"italic", "**":"bold", "`":"code", "[":"link", "![":"image"}
+    
+    opener_dict = {"*":"italic", "**":"bold", "***":"bold-italic", "`":"code", "[":"link", "![":"image"}
+    closer_dict = {"italic":"*", "bold":"**", "bold-italic":("***","**","*"), "code":"`", "link":"]", "image":"]", "text":""}
+    
+    openers = "".join({y for i in opener_dict for y in i})
+    current_closer = ""
 
     a = 0
     last = 0
+    res = [["text"]]
+    while a < length:
+
+        ### this is how we know whether to close off the latest part of nested markdown
+
+        if text[a] in current_closer:
+            
+            if a-1 >= 0 and text[a-1] == "\\": # if the previous character exists, and it's an escape character
+
+                if a-2 >= 0 and last < a-1: # if it has anything before it
+                    res[-1].append(text[last:a-1]) # we add that to the most recent block immediately
+                last = a # we bring last forward to this point after the escape character
+                
+                if text[a] == "*": # *s are a special case 
+                    peek_ahead = 1 # we need to see how many of them there are
+                    while a + peek_ahead < length and text[a + peek_ahead] == "*" and peek_ahead < 4:
+                        peek_ahead += 1
+                    a += min(peek_ahead, 3) # the escape will ignore at most 3, since that's the highest valid combination of *s
+                    continue
+
+                if current_closer == text[a]:
+                    a += 1
+                    continue
+
+            if text[a] != "*": # if it's not our bold/italics special case
+
+                if text[a] == "]": # if it's a link/image format we ignore the first bracket
+                    closer_dict[res[-1][0]] = ")" # we change the acceptable closer to ")"
+                    current_closer = ")" # we update our current closer to it
+                    a += 1 # move forward one to ignore this character
+
+                    if a < length and text[a] != "(": # if the next character is not an opening parenthesis
+                        raise Exception("Invalid Markdown, incorrect syntax, alt/link text declarations must be followed immediately by a link in parentheses")
+
+                    continue
+
+                if text[a] == ")": # we can't ignore this closer
+                    closer_dict[res[-1][0]] = "]"
+
+                if last != a: # if interior text (even a space) exists
+                    res[-1].append(text[last:a]) # we add the previous sequence to the default (final) list in res (the last value has nothing to do with this, last refers to the next-to-be-added position in the text)
+                    temp = res.pop()
+
+                    if temp[0] == "link":
+                        temp_data = "".join(temp[1:]).split("](")
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data[0], text_type = temp[0], url = temp_data[1])).to_html()
+                    elif temp[0] == "image":
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = None, text_type = temp[0], url = temp_data)).to_html()
+                    else:
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                    
+                    res[-1].append(temp)
+                else: # if interior text does not exist
+                    res.pop() # the last markdown opener is irrelevant
+                
+                current_closer = closer_dict[res[-1][0]] # we change our closer to the next one down
+
+                a += 1 # once we're done with that, we move onto the next character
+                last = a # and move our last index up to the current point
+
+                continue # and immediately reset the loop
+            
+            peek_ahead = 1
+            
+            while a + peek_ahead < length and text[a + peek_ahead] == "*" and peek_ahead < 4:
+                peek_ahead += 1
+
+            if current_closer == ("***","**","*"): # if it's both bold and italic (we handle our special case separately)
+                if peek_ahead >= 3:
+                    if last != a or len(res[-1]) != 1:
+                        res[-1].append(text[last:a])
+                        res[-1][0], res[-2][0] = "bold", "italic"
+
+                        temp = res.pop()
+
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                        
+                        res[-1].append(temp)
+
+                        temp = res.pop()
+                        
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+
+                        
+                        res[-1].append(temp)
+                    else:
+                        res.pop()
+                        res.pop()
+                    
+                    current_closer = closer_dict[res[-1][0]]
+
+                    a += 3 # we only move forward 3, even if there's 4+ *s, since the next one could be another opener, even if bad practice
+                    last = a
+                    continue # and start the next loop early
+
+                elif peek_ahead == 2:
+                    if last != a or len(res[-1]) != 1:
+                        res[-1].append(text[last:a])
+                        res[-1][0], res[-2][0] = "bold", "italic"
+
+                        temp = res.pop()
+                        
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                        
+                        res[-1].append(temp)
+                    else:
+                        res.pop()
+                        res[-1][0] = "italic" # otherwise, it would remain "bold_italic"
+                    
+                    current_closer = closer_dict[res[-1][0]]
+
+                    a += 2 # we move forward 2, since we closed out a bolded instance
+                    last = a
+                    continue # and start the next loop early
+
+                else: # peek_ahead == 1:
+                    if last != a or len(res[-1]) != 1: # this tells us if the block would be empty or not
+                        res[-1].append(text[last:a])
+                        res[-1][0], res[-2][0] = "italic", "bold"
+
+                        temp = res.pop()
+                        
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                        
+                        res[-1].append(temp)
+                    else:
+                        res.pop()
+                        res[-1][0] = "bold" # otherwise, it would remain "bold_italic"
+                    
+                    current_closer = closer_dict[res[-1][0]]
+
+                    a += 1 # we move forward 1, since we closed out a italic instance
+                    last = a
+                    continue # and start the next loop early
+
+            elif current_closer == "**":
+                if peek_ahead == 1: # this is not a closer, this is an italic opener
+                    pass # we let it continue and don't interact with the rest of the loop (we don't increment a and will get passed on to the opener if statement)
+
+                else: # we don't care how many more than two it is, it's a closer, we're using it
+                    if last != a or len(res[-1]) != 1: # this tells us if the block would be empty or not
+                        res[-1].append(text[last:a])
+
+                        temp = res.pop()
+                        
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                        
+                        res[-1].append(temp)
+                    else:
+                        res.pop()
+                    
+                    current_closer = closer_dict[res[-1][0]]
+
+                    a += 2 # we move forward 2, since we closed out a bolded instance
+                    last = a
+                    continue # and start the next loop early
+
+            else: # current_closer == "*":
+                if peek_ahead >= 2: # this is not a closer, this is a bold opener
+                    pass # we let it continue and don't interact with the rest of the loop (we don't increment a and will get passed on to the opener if statement)
+                else: # we don't care how many more than two it is, it's a closer, we're using it
+                    if last != a or len(res[-1]) != 1: # this tells us if the block would be empty or not
+                        res[-1].append(text[last:a])
+
+                        temp = res.pop()
+                        
+                        temp_data = "".join(temp[1:])
+                        temp = htmlnode.text_node_to_html_node(TextNode(text = temp_data, text_type = temp[0])).to_html()
+                        
+                        res[-1].append(temp)
+                    else:
+                        res.pop()
+                    
+                    current_closer = closer_dict[res[-1][0]]
+
+                    a += 1 # we move forward 1, since we closed out an italic instance
+                    last = a
+                    continue # and start the next loop early
+        
+        ### this is how we know whether to open a new section of nested markdown
+        
+        if text[a] in openers:
+
+            escaped = False
+            
+            if a-1 >= 0 and text[a-1] == "\\": # if the previous character exists, and it's an escape character
+                if a-2 >= 0 and last < a-1: # if it has anything before it
+                    res[-1].append(text[last:a-1]) # we add that to the most recent block immediately
+                last = a # we bring last forward to this point after the escape character
+                escaped = True
+
+            if last != a:
+                res[-1].append(text[last:a]) # we add the previous sequence to the default (last) list in res
+                last = a
+
+            start = a
+
+            while a < length and text[a] in openers:
+
+                a += 1
+
+                if "".join(text[start: a]) in opener_dict: # if it's a valid opener
+                    
+                    if closer_dict["link"] == ")": # this prevents markdown from being initiated within the url sections
+                        raise Exception("Invalid Markdown, no further markdown can be placed within link url")
+                    elif closer_dict["image"] == ")": 
+                        raise Exception("Invalid Markdown, no further markdown can be placed within image url")
+
+                    if text[start] == "*": # nested bold/italics can present as "***"
+                        
+                        while a < length and a - start < 3 and text[a] == "*": # we need another loop to make sure we get all of them
+                            a += 1
+                    
+                    if escaped:
+                        break
+
+                    markdown_symbol = "".join(text[start: a]) # we construct it
+                    
+                    current_identity = opener_dict[markdown_symbol] # we find out what it's called
+
+                    if current_identity != "bold-italic":
+                        res.append([current_identity]) # we append a new list to res. this is now the default. it starts with its identity.
+                    else:
+                        res.append([current_identity]) # "***" is a special case, since we don't know whether it's "**" + "*" or "*" + "**"
+                        res.append([current_identity]) # we add it twice, and figure it out later
+
+                    current_closer = closer_dict[current_identity] # and find and record its corresponding closer
+
+                    last = a # we move our last index up to the current point
+
+                    break # and we break out of the inner loop
+
+                elif a-start > 3: # if it goes longer than 3 without being identified, it's invalid markdown
+                    raise Exception("Invalid Markdown, symbol not recognized")
+            
+            continue # since we've already moved forward inside the loop to a potential non opening char, we don't want to move forward again
+
+        a += 1
+    
+    if last != a:
+        res[-1].append(text[last:a])
+
+    if len(res) > 1:
+        raise Exception("Invalid Markdown, opened symbols have not been closed")
+
+    output = "".join(res[0][1:])
+
+    return output
+
+def line_splitter(document):
+
+    def identity(x, ordered = False):
+        first_space = x.find(" ")
+        if first_space == -1: return ("text", 0)
+        first_segment = x[:first_space]
+        first_len = len(first_segment) + 1
+        if x.startswith("1. ") or (ordered == True and first_segment[-1]=="." and first_segment[:-1].isdigit() ):
+            return ("ol", first_len)
+        elif first_segment == "*" or first_segment == "-":
+            return ("ul", 2)
+        elif first_segment in ("#","##","###","####","#####","######"):
+            return (f"h{first_len - 1}", first_len)
+        elif first_segment == ">":
+            return ("quote", 2)
+        elif first_segment == "```":
+            return ("code-block", 4)
+        else: 
+            return ("text", 0)
+    
+    split_document = list(filter(lambda x: not x=="", map(lambda x: x.strip() ,document.split("\n")[::-1])))
+    line_starters = "1-*#>`"
+    length = len(split_document)
+
+    a = 0
     res = []
     while a < length:
-        if text[a] in openers and ord(text[max(0, a-1)]) != 92: # if we hit a markdown character, append the previous string (if any) as raw text
-            if last != a:
-                if res and res[-1][1] == "text": # the previous length of text wasn't long enough
-                    res.pop() # remove it
-                res.append((text[last:a],"text")) # add text to our results
-            start = a # we store our starting point before we begin the inner loop
-            while text[a] in openers:    
-                a += 1
-                if a >= length or text[a] not in openers: # if we get to the end of the string or if we reach a non-opener, we start our exit process
-                    test_opener = "".join(text[start:a]) # we join our current string together from where we began up to now
-                    if test_opener in markdown_openers: # if it's valid
-                        closer = markdown_openers[test_opener] # we find out its corresponding closer
-                        found = text[a+1:].find(closer) # and check if and where it exists
-                        close_index = found + (a+1)
-                        if found != -1 and ord(text[close_index-1]) != 92 : # if it exists
-                            close_index = found + (a+1)
-                            res.append((text[a:close_index], opener_dict[test_opener])) # we take it as a result
-                            a = close_index + len(closer) # we increment our position
-                            last = a # set that as the new starting point for default text strings
-                            break # and end the loop
-                        else:
-                            break
-                            #raise Exception("invalid markdown")
-                    else:
-                        # if it turns out to be a dud, we remove the last eronious entry (if added) from res and continue on
-                        if last != a:
-                            res.pop()
-                        break
+        temp = []
+        current = split_document.pop()
+        current_id, current_offset = identity(current)
+        temp.append(current[current_offset:])
         a += 1
-    if last + 1 < a:
-        if res and res[-1][1] == "text":
-            res.pop()
-        res.append((text[last:length], "text"))
-    for i, v in enumerate(res):
-        if chr(92) in res[i][0]:
-            bslsh = chr(92)
-            repl = res[i][0]
-            while f"{bslsh}*" in repl  or f"{bslsh}`" in repl or f"{bslsh}[" in repl  or f"{bslsh}![" in repl:
-                repl = repl.replace(f"{bslsh}*","*").replace(f"{bslsh}`","`").replace(f"{bslsh}[","[").replace(f"{bslsh}![","![")
-            res[i] = (repl, res[i][1])
-        if res[i][1] == "image":
-            res[i] = (f"![{res[i][0]}]", "image")
+        while a < length and split_document and current_id == identity(split_document[-1], current_id=="ol")[0]:
+            if current_id == "ol":
+                current_offset = identity(split_document[-1], True)[1]
+            temp.append(split_document.pop()[current_offset:])
+            a += 1
+        res.append((current_id, temp))
+    print(res)
 
-    for i, v in enumerate(res):
-        if v[1] in ("text", "bold", "italic", "code"):
-            res[i] = htmlnode.text_node_to_html_node(TextNode(v[0],v[1]))
-        elif v[1] == "link":
-            res[i] = htmlnode.text_node_to_html_node(TextNode(text = v[0].split("](")[0], text_type = v[1], url = v[0].split("](")[1]))
-        else:
-            res[i] = htmlnode.text_node_to_html_node(TextNode(text=None, text_type=v[1], url=v[0]))
-
-    output = htmlnode.ParentNode(tag="p", children=res)
-
-    return output.to_html()
+print(line_splitter("# xyz\n- 3\nabc abc\n# h1\n## h2\n### h3\n### h3\n#### xyz\n1. a\n4. b\n6. c\n5. d\n123. abc\n``` xyz\n* abc"))
