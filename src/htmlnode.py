@@ -59,7 +59,10 @@ class ParentNode(HTMLnode):
 
 		props_str = self.props_to_html()
 
-		contents = "".join(i.to_html() for i in self.children)
+		contents = " ".join(i.to_html() for i in self.children)
+		
+		if self.tag == "nil":
+			return contents
 
 		return f"<{self.tag}{' ' + props_str if props_str else ''}>{contents}</{self.tag}>"
 	

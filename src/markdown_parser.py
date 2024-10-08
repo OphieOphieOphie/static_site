@@ -269,26 +269,26 @@ def raw_text_to_markdown(text, line_tag="p"):
     return output
 
 def line_splitter(document):
-
     def identity(x, ordered = False):
+        
         first_space = x.find(" ")
-        if first_space == -1: return ("text", 0)
         first_segment = x[:first_space]
         first_len = len(first_segment) + 1
-        if x.startswith("1. ") or (ordered == True and first_segment[-1]=="." and first_segment[:-1].isdigit() ):
+
+        if x.startswith("1. ") or (ordered != False and first_segment[-1]=="." and first_segment[:-1].isdigit() ):
             return ("ol", first_len)
         elif first_segment == "*" or first_segment == "-":
             return ("ul", 2)
         elif first_segment in ("#","##","###","####","#####","######"):
             return (f"h{first_len - 1}", first_len)
-        elif first_segment == ">":
-            return ("quote", 2)
-        elif first_segment == "```":
-            return ("code-block", 4)
+        elif x.startswith(">"):
+            return ("blockquote", 1)
+        elif x.startswith("```") and x.endswith("```"):
+            return ("code", 3)
         else: 
-            return ("text", 0)
+            return ("p", 0)
     
-    split_document = list(filter(lambda x: not x=="", map(lambda x: x.strip() ,document.split("\n")[::-1])))
+    split_document = list(filter(lambda x: not x=="", document.split("\n")[::-1]))
     line_starters = "1-*#>`"
     length = len(split_document)
 
@@ -300,12 +300,42 @@ def line_splitter(document):
         current_id, current_offset = identity(current)
         temp.append(current[current_offset:])
         a += 1
+
         while a < length and split_document and current_id == identity(split_document[-1], current_id=="ol")[0]:
             if current_id == "ol":
                 current_offset = identity(split_document[-1], True)[1]
             temp.append(split_document.pop()[current_offset:])
             a += 1
         res.append((current_id, temp))
-    print(res)
+    
+    output = []
+    for i in res:
+        temp = []
+        for c in i[1]:
+            if i[0] == "code":
+                temp.append(htmlnode.LeafNode(tag=None, value=raw_text_to_markdown(c[:-3])))
+            elif i[0] in ("ul", "ol"):
+                child = htmlnode.LeafNode(tag=None, value=raw_text_to_markdown(c))
+                temp.append(htmlnode.ParentNode(tag="li", children=[child]))
+            else:
+                temp.append(htmlnode.LeafNode(tag=None, value=raw_text_to_markdown(c)))
+        
+        if i[0] == "code":
+            block_strip = htmlnode.LeafNode(tag=None, value=htmlnode.ParentNode(tag="nil", children=temp).to_html().strip())
 
-print(line_splitter("# xyz\n- 3\nabc abc\n# h1\n## h2\n### h3\n### h3\n#### xyz\n1. a\n4. b\n6. c\n5. d\n123. abc\n``` xyz\n* abc"))
+            inner_parent = htmlnode.ParentNode(tag="code", children=[block_strip])
+            outer_parent = htmlnode.ParentNode(tag="pre", children=[inner_parent])
+        else:
+            block_strip = htmlnode.LeafNode(tag=None, value=htmlnode.ParentNode(tag="nil", children=temp).to_html().strip())
+
+            outer_parent = htmlnode.ParentNode(tag=i[0], children=[block_strip])
+        output.append(outer_parent)
+
+    return htmlnode.ParentNode(tag="nil", children=output)
+
+def block_splitter(document):
+    split_document = list(filter(lambda x: not x=="", map(lambda x: x.strip() ,document.split("\n\n"))))
+    res = []
+    for i in split_document:
+        res.append(line_splitter(i))
+    return (htmlnode.ParentNode(tag="div", children=res).to_html())

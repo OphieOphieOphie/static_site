@@ -155,7 +155,7 @@ class TestParentNode(unittest.TestCase):
         child1 = LeafNode("p", "Paragraph 1")
         child2 = LeafNode("p", "Paragraph 2")
         parent = ParentNode("div", [child1, child2])
-        self.assertEqual(parent.to_html(), "<div><p>Paragraph 1</p><p>Paragraph 2</p></div>",
+        self.assertEqual(parent.to_html(), "<div><p>Paragraph 1</p> <p>Paragraph 2</p></div>",
 			msg="ParentNode.to_html() and two LeafNode children")
 
     def test_parent_node_with_props(self):
@@ -171,7 +171,7 @@ class TestParentNode(unittest.TestCase):
         leaf2 = LeafNode("p", "Paragraph 2")
         inner_parent = ParentNode("div", [leaf1, leaf2], {"class": "inner"})
         outer_parent = ParentNode("div", [inner_parent], {"class": "outer"})
-        expected = '<div class="outer"><div class="inner"><p>Paragraph 1</p><p>Paragraph 2</p></div></div>'
+        expected = '<div class="outer"><div class="inner"><p>Paragraph 1</p> <p>Paragraph 2</p></div></div>'
         self.assertEqual(outer_parent.to_html(), expected,
 			msg="ParentNode.to_html() with one ParentNode child with two LeafNode children")
 
