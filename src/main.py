@@ -38,35 +38,43 @@ def main(source, destination, logging=False):
 
 	recursive_copy(source, destination)
 
-def read_file(current_dir, path):
-    file_path = os.path.join(current_dir, path)
+def read_file(path):
+    with open(path, 'r') as file:
+        return file.read()
 
-    with open(file_path, 'r') as file:
-        contents = file.read()
-    return contents
 
-def generate_html(template_path, markdown_path, current_dir, target_path):
-	template_content = read_file(current_dir, template_path)
-	markdown_content = read_file(current_dir, markdown_path)
+def generate_html_recursive(template_path, content_dir, public_dir, logging=False):
+	template_content = read_file(template_path)
 
-	markdown_html = markdown_parser.markdown_to_html(markdown_content)
-	markdown_title = markdown_parser.extract_title(markdown_content)
+	for root, dirs, files in os.walk(content_dir):
 
-	template_content = template_content.replace("{{ Title }}", markdown_title).replace("{{ Content }}", markdown_html)
+		for file in files:
+			if file.endswith('.md'):
+				markdown_path = os.path.join(root, file)
+				relative_path = os.path.relpath(markdown_path, content_dir)
+				html_path = os.path.join(public_dir, os.path.splitext(relative_path)[0] + '.html')
 
-	with open(target_path, 'w') as file:
-		file.write(template_content)
+				os.makedirs(os.path.dirname(html_path), exist_ok=True)
+
+				markdown_content = read_file(markdown_path)
+				markdown_html = markdown_parser.markdown_to_html(markdown_content)
+				markdown_title = markdown_parser.extract_title(markdown_content)
+
+				page_content = template_content.replace("{{ Title }}", markdown_title).replace("{{ Content }}", markdown_html)
+
+				with open(html_path, 'w') as file:
+					file.write(page_content)
+				if logging:
+					print(f"Generated: {html_path}")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 static_dir = os.path.join(current_dir, "..", "static")
 public_dir = os.path.join(current_dir, "..", "public")
 
-template_file_path = os.path.join(current_dir, "../template.html")
-markdown_file_path = os.path.join(current_dir, "../content/index.md")
-
-target_path = os.path.join(current_dir, "../public/index.html")
-
+template_path = os.path.join(current_dir, '..', 'template.html')
+content_dir = os.path.join(current_dir, '..', 'content')
+public_dir = os.path.join(current_dir, '..', 'public')
 
 main(static_dir, public_dir, logging=False)
-generate_html(template_file_path,markdown_file_path,current_dir,target_path)
+generate_html_recursive(template_path, content_dir, public_dir, logging=False)
