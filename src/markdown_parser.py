@@ -333,9 +333,26 @@ def line_splitter(document):
 
     return htmlnode.ParentNode(tag="nil", children=output)
 
-def block_splitter(document):
+def markdown_to_html(document):
     split_document = list(filter(lambda x: not x=="", map(lambda x: x.strip() ,document.split("\n\n"))))
     res = []
     for i in split_document:
-        res.append(line_splitter(i))
+        if i.startswith("```") and i.endswith("```"):
+            code_adjustment = i.split("\n")
+            code_adjustment[0], code_adjustment[-1] = code_adjustment[0].replace("```", ""), code_adjustment[-1].replace("```", "")
+            if code_adjustment[0] == "": code_adjustment.pop(0)
+            if code_adjustment[-1] == "": code_adjustment.pop()
+            code_leaf = htmlnode.LeafNode(tag=None, value=" ".join(code_adjustment))
+            inner_parent = htmlnode.ParentNode(tag="code", children=[code_leaf])
+            outer_parent = htmlnode.ParentNode(tag="pre", children=[inner_parent])
+            res.append(outer_parent)
+        else:
+            res.append(line_splitter(i))
     return (htmlnode.ParentNode(tag="div", children=res).to_html())
+
+def extract_title(document):
+    split_document = list(filter(lambda x: not x=="", map(lambda x: x.strip() ,document.split("\n\n"))))
+    for i in split_document:
+        if i.startswith("# "):
+            return i.replace("# ","").strip()
+    raise Exception("No title found")
