@@ -342,7 +342,7 @@ def markdown_to_html(document):
             code_adjustment[0], code_adjustment[-1] = code_adjustment[0].replace("```", ""), code_adjustment[-1].replace("```", "")
             if code_adjustment[0] == "": code_adjustment.pop(0)
             if code_adjustment[-1] == "": code_adjustment.pop()
-            code_leaf = htmlnode.LeafNode(tag=None, value=" ".join(code_adjustment))
+            code_leaf = htmlnode.LeafNode(tag=None, value="\n".join(code_adjustment))
             inner_parent = htmlnode.ParentNode(tag="code", children=[code_leaf])
             outer_parent = htmlnode.ParentNode(tag="pre", children=[inner_parent])
             res.append(outer_parent)
